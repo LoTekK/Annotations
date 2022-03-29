@@ -1,0 +1,8 @@
+{
+  "name": "com.teckartist.annotations",
+  "displayName": "Annotations",
+  "version": "0.1.0",
+  "unity": "2021.2",
+  "description": "Tool to draw or write annotations in the scene view",
+  "type": "tool"
+}
