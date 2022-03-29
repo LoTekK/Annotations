@@ -1,30 +1,15 @@
-# TeckArtist Overlays
-
-Collection of useful overlays:
-- SceneView visualisers
-  - Configurable Grid/Checker
-  - Mip visualiser
-  - Overdraw visualiser [*simplistic*]
-  - Simple process to add your own
-- Rig control overlay [*requires Animation Rigging package*]
-- Inspector overlay
+# TeckArtist Annotations
+Tool to draw or write annotations in the scene view
 ---
 # Overview
-## SceneView Visualisers
-- ### Grid/Checker [SG_Grid]
-  - This gives you a configurable shader that overlays axial grid lines and checker patterns measured in world space. This can be useful for doing level design, whether you're grayboxing or using more "finished" assets.
-- ### Mip Visualiser [S_MipViz]
-  - Colorises texels based on relative texel size. Original texture colours indicates close to 1:1 texel:pixel ratio. Red means too much texture detail, while blue means too little.
-  - Note: This isn't *strictly* a mip visualiser, as it looks purely at relative texel size (colouration happens regardless of whether a texture actually *has* mips).
-  - Actual shader mostly comes from https://aras-p.info/blog/2011/05/03/a-way-to-visualize-mip-levels/
-- ### Overdraw Visualiser
-  - This provides a very loose and simplistic approximation of overdraw. In practise this just draws all geometry (opaque and transparent) with an additive shader set to not ZWrite.
-- ### Extending
-  - To add your own SceneView shaders to the dropdown, just create a new SceneViewShaderConfig asset (`Assets/Create/Scene View Shader Config`), and assign an appropriate shader to the Shader property. Any shader property defaults will be respected, but textures will need to be assigned in the Config asset (See the `VS_MipViz` asset for an example).
-## Rigging Overlay
-- This provides a UI panel showing all active rigs and their associated rigging constraints. The rigs and constraints are shown as draggable progress bars representing their respective weights.
-## Inspector Overlay
-- This is not a 1:1 replacement for the built-in inspector (prefab controls and material inspectors are not implemented), but does provide you with a floating, contextual inspector when working with a full-screen SceneView.
+## Usage
+Select `Annotations` from the Custom Tool dropdown in the SceneView Toolbar. When in this mode, an overlay shows up to allow you to change options such as stroke width, stroke colour, and the color of the drawing plane. Scene view navigation (eg. `Alt-LMB` to orbit or `Alt-RMB` to zoom) is still available.
+
+To place a stroke, hold shift; the drawing plane will be displayed, and LMB dragging will draw a stroke. `Undo` and `Redo` are supported. The `Clear` button on the overlay panel will clear all strokes.
+
+Currently the stroke container has its `hideFlags` set to `HideAndDontSave`, so the strokes won't contaminate your scenes.
 ---
 # Known Issues
-- Scene view replacement currently only works with shaders compatible with the Built-in pipeline, regardless of what Render Pipeline your project is using.
+---
+# Todo
+Possibly looking into how best to handle persistent annotations that can be checked into source control without contaminating the scene.
