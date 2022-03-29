@@ -94,12 +94,12 @@ public class AnnotateTool : EditorTool
         {
             container = new GameObject("Annotation")
             {
-                // hideFlags = HideFlags.HideAndDontSave
+                hideFlags = HideFlags.HideAndDontSave
             }.transform;
         }
         var go = new GameObject()
         {
-            // hideFlags = HideFlags.HideAndDontSave
+            hideFlags = HideFlags.HideAndDontSave
         };
         currentLine = go.AddComponent<LineRenderer>();
         currentLine.useWorldSpace = true;
@@ -121,7 +121,7 @@ public class AnnotateTool : EditorTool
     public override void OnActivated()
     {
         // base.OnActivated();
-        Debug.Log("Start annotating");
+        // Debug.Log("Start annotating");
         if (EditorWindow.GetWindow<SceneView>().TryGetOverlay("AnnotateOverlay", out var overlay))
         {
             overlay.displayed = true;
@@ -136,7 +136,7 @@ public class AnnotateTool : EditorTool
     public override void OnWillBeDeactivated()
     {
         // base.OnWillBeDeactivated();
-        Debug.Log("Stop annotating");
+        // Debug.Log("Stop annotating");
         if (EditorWindow.GetWindow<SceneView>().TryGetOverlay("AnnotateOverlay", out var overlay))
         {
             (overlay as AnnotateOverlay).Teardown();
