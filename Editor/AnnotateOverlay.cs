@@ -31,35 +31,21 @@ public class AnnotateOverlay : Overlay
     {
         UpdatePanel();
         tool = _tool;
+        var so = new SerializedObject(tool);
         var width = new Slider("Width")
         {
-            value = tool.Width,
+            // value = tool.Width,
             lowValue = 0,
             highValue = 1,
             showInputField = true
         };
-        width.RegisterValueChangedCallback(evt =>
-        {
-            tool.Width = evt.newValue;
-        });
+        width.BindProperty(so.FindProperty(nameof(tool.Width)));
         m_Panel.Add(width);
-        var strokeColor = new ColorField("Stroke Color")
-        {
-            value = tool.StrokeColor
-        };
-        strokeColor.RegisterValueChangedCallback(evt =>
-        {
-            tool.StrokeColor = evt.newValue;
-        });
+        var strokeColor = new ColorField("Stroke Color");
+        strokeColor.BindProperty(so.FindProperty(nameof(tool.StrokeColor)));
         m_Panel.Add(strokeColor);
-        var planeColor = new ColorField("Plane Color")
-        {
-            value = tool.PlaneColor
-        };
-        planeColor.RegisterValueChangedCallback(evt =>
-        {
-            tool.PlaneColor = evt.newValue;
-        });
+        var planeColor = new ColorField("Plane Color");
+        planeColor.BindProperty(so.FindProperty(nameof(tool.PlaneColor)));
         m_Panel.Add(planeColor);
         var button = new Button(() => tool.Clear())
         {

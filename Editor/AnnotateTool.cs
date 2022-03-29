@@ -2,89 +2,112 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.EditorTools;
+using UnityEditor.ShortcutManagement;
 using UnityEngine;
 
 [EditorTool("Annotate")]
 public class AnnotateTool : EditorTool
 {
-    public float Width = 0.1f;
+    public float Width = 0.5f;
+    private float lastWidth;
     private float ssWidth;
     public Color StrokeColor = Color.cyan * 0.7f;
     public Color PlaneColor = Color.cyan * 0.25f;
-    private bool isDrawing;
     private Transform container;
     private LineRenderer currentLine;
+    private LineRenderer[] lines;
+    private bool isDrawing;
     private Plane plane;
     private Ray ray;
     private float d;
+    private Vector3 lastPos;
     public override GUIContent toolbarIcon => EditorGUIUtility.IconContent("editicon.sml");
+
+    [Shortcut("Annotations/Annotate", typeof(SceneView), KeyCode.N)]
+    static void ToggleAnnotate(ShortcutArguments args)
+    {
+        ToolManager.SetActiveTool<AnnotateTool>();
+    }
 
     public override void OnToolGUI(EditorWindow window)
     {
         // base.OnToolGUI(window);
+        Event e = Event.current;
+        UpdateLineWidth();
+        // if (e.modifiers.HasFlag(EventModifiers.Alt)) return;
+        if (!e.shift || e.alt) return;
+
         var view = window as SceneView;
         HandleUtility.AddDefaultControl(-1);
-        Event e = Event.current;
-        if (!e.shift) return;
+
         plane.SetNormalAndPosition(-view.camera.transform.forward, view.pivot);
-        // var up = view.camera.transform.up * HandleUtility.GetHandleSize(view.pivot);
-        // var right = view.camera.transform.right * HandleUtility.GetHandleSize(view.pivot);
+        ssWidth = HandleUtility.GetHandleSize(view.pivot) * Mathf.Lerp(0.01f, 0.1f, Width);
 
         ray = HandleUtility.GUIPointToWorldRay(Vector2.zero);
         plane.Raycast(ray, out d);
-        var p0 = ray.GetPoint(d) + view.camera.transform.forward * 0.01f;
-        ray = HandleUtility.GUIPointToWorldRay(Vector2.up * view.position.height);
-        plane.Raycast(ray, out d);
-        var p1 = ray.GetPoint(d) + view.camera.transform.forward * 0.01f;
-        ray = HandleUtility.GUIPointToWorldRay(new Vector2(view.position.width, view.position.height));
-        plane.Raycast(ray, out d);
-        var p2 = ray.GetPoint(d) + view.camera.transform.forward * 0.01f;
-        ray = HandleUtility.GUIPointToWorldRay(Vector2.right * view.position.width);
-        plane.Raycast(ray, out d);
-        var p3 = ray.GetPoint(d) + view.camera.transform.forward * 0.01f;
 
         var color = Handles.color;
         var zTest = Handles.zTest;
         Handles.zTest = UnityEngine.Rendering.CompareFunction.LessEqual;
         Handles.color = PlaneColor;
-        Handles.DrawAAConvexPolygon(
-            p0, p1, p2, p3
-        );
+        var v = ray.GetPoint(d) - view.pivot;
+        Handles.DrawSolidDisc(view.pivot, -view.camera.transform.forward, v.magnitude);
+
         Handles.color = color;
         Handles.zTest = zTest;
-        if (e.isMouse)
+        if (e.isMouse && e.button == 0)
         {
             switch (e.type)
             {
                 case EventType.MouseDown:
-                    // Debug.Log("Start drawing");
-                    ssWidth = HandleUtility.GetHandleSize(view.pivot) * Width;
-                    AddLine();
-                    currentLine.positionCount = 1;
+                    isDrawing = true;
                     ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
                     plane.Raycast(ray, out d);
-                    currentLine.SetPosition(0, ray.GetPoint(d));
-                    isDrawing = true;
+                    lastPos = ray.GetPoint(d);
                     e.Use();
                     break;
                 case EventType.MouseUp:
-                    // Debug.Log("Stop drawing");
-                    if (currentLine?.positionCount < 2)
-                    {
-                        DestroyImmediate(currentLine.gameObject);
-                    }
-                    currentLine = null;
                     isDrawing = false;
+                    currentLine = null;
                     e.Use();
                     break;
                 case EventType.MouseDrag:
-                    ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
-                    plane.Raycast(ray, out d);
-                    ++currentLine.positionCount;
-                    currentLine.SetPosition(currentLine.positionCount - 1, ray.GetPoint(d));
+                    if (isDrawing)
+                    {
+                        ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
+                        plane.Raycast(ray, out d);
+                        var p = ray.GetPoint(d);
+                        if ((p - lastPos).sqrMagnitude > (ssWidth / 2) * (ssWidth / 2))
+                        {
+                            if (currentLine == null)
+                            {
+                                AddLine();
+                                currentLine.positionCount = 1;
+                                currentLine.SetPosition(0, lastPos);
+                            }
+                            ++currentLine.positionCount;
+                            lastPos = p;
+                        }
+                        if (currentLine != null)
+                        {
+                            currentLine.SetPosition(currentLine.positionCount - 1, p);
+                        }
+                    }
                     e.Use();
                     break;
             }
+        }
+    }
+
+    public void UpdateLineWidth()
+    {
+        if (container == null)
+        {
+            return;
+        }
+        foreach (var line in lines)
+        {
+            line.widthMultiplier = HandleUtility.GetHandleSize(line.bounds.center) * Mathf.Lerp(0.01f, 0.1f, Width);
         }
     }
 
@@ -111,11 +134,22 @@ public class AnnotateTool : EditorTool
         // currentLine.widthCurve = new AnimationCurve(new Keyframe(0, 0), new Keyframe(0.1f, 1), new Keyframe(0.9f, 1), new Keyframe(1, 0));
         go.transform.SetParent(container);
         Undo.RegisterCreatedObjectUndo(go, "Annotation");
+        lines = container.GetComponentsInChildren<LineRenderer>();
     }
 
     public void Clear()
     {
-        DestroyImmediate(container.gameObject);
+        if (container == null)
+        {
+            return;
+        }
+        Undo.DestroyObjectImmediate(container.gameObject);
+        Undo.SetCurrentGroupName("Clear Annotations");
+    }
+
+    private void OnUndoRedo()
+    {
+        lines = container?.GetComponentsInChildren<LineRenderer>();
     }
 
     public override void OnActivated()
@@ -127,10 +161,7 @@ public class AnnotateTool : EditorTool
             overlay.displayed = true;
             (overlay as AnnotateOverlay).Init(this);
         }
-        // if (container)
-        // {
-        //     DestroyImmediate(container.gameObject);
-        // }
+        Undo.undoRedoPerformed += OnUndoRedo;
     }
 
     public override void OnWillBeDeactivated()
@@ -142,5 +173,6 @@ public class AnnotateTool : EditorTool
             (overlay as AnnotateOverlay).Teardown();
             overlay.displayed = false;
         }
+        Undo.undoRedoPerformed -= OnUndoRedo;
     }
 }
