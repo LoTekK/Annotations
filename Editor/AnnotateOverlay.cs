@@ -34,6 +34,14 @@ namespace TeckArtist.Tools
             UpdatePanel();
             tool = _tool;
             var so = new SerializedObject(tool);
+            var smoothing = new Slider("Smoothing")
+            {
+                lowValue = 0,
+                highValue = 1,
+                showInputField = true
+            };
+            smoothing.BindProperty(so.FindProperty(nameof(tool.Smoothing)));
+            m_Panel.Add(smoothing);
             var width = new Slider("Width")
             {
                 // value = tool.Width,

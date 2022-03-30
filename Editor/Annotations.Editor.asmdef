@@ -1,7 +1,9 @@
 {
     "name": "Annotations.Editor",
     "rootNamespace": "",
-    "references": [],
+    "references": [
+        "GUID:75469ad4d38634e559750d17036d5f7c"
+    ],
     "includePlatforms": [
         "Editor"
     ],
@@ -11,6 +13,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.inputsystem",
+            "expression": "0.0.0",
+            "define": "ANNOTATION_INPUT_SYSTEM"
+        }
+    ],
     "noEngineReferences": false
 }

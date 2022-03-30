@@ -7,12 +7,14 @@ using UnityEditor;
 using UnityEditor.EditorTools;
 using UnityEditor.ShortcutManagement;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace TeckArtist.Tools
 {
     [EditorTool("Annotate")]
     public class AnnotateTool : EditorTool
     {
+        public float Smoothing;
         public float Width = 0.5f;
         private float lastWidth;
         private float ssWidth;
@@ -25,11 +27,13 @@ namespace TeckArtist.Tools
         private Plane plane;
         private Ray ray;
         private float d;
+        private Vector3 lastPoint;
         private Vector3 lastPos;
         private Vector2 clickPos;
         private Vector3 cursorPos;
         private bool useCursor;
         public override GUIContent toolbarIcon => EditorGUIUtility.IconContent("editicon.sml");
+
 
         [Shortcut("Annotations/Annotate", typeof(SceneView), KeyCode.D)]
         static void ToggleAnnotate(ShortcutArguments args)
@@ -47,8 +51,8 @@ namespace TeckArtist.Tools
 
             if (useCursor)
             {
-                var p = HandleUtility.WorldToGUIPoint(cursorPos);
-                if (!view.position.Contains(p + view.position.min))
+                var cp = HandleUtility.WorldToGUIPoint(cursorPos);
+                if (!view.position.Contains(cp + view.position.min))
                 {
                     useCursor = false;
                 }
@@ -88,17 +92,25 @@ namespace TeckArtist.Tools
             // if (!e.shift || e.alt) return;
             HandleUtility.AddDefaultControl(-1);
 
+            ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
+            plane.Raycast(ray, out d);
+            var p = ray.GetPoint(d);
+            if (isDrawing)
+            {
+                DrawString(lastPoint, p, view.camera.transform.up);
+            }
             if (e.isMouse)
             {
                 switch (e.type)
                 {
                     case EventType.MouseDown:
-                        ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
+                        // ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
                         if (e.button == 0)
                         {
                             isDrawing = true;
                             plane.Raycast(ray, out d);
                             lastPos = ray.GetPoint(d);
+                            lastPoint = lastPos;
                             clickPos = e.mousePosition;
                             e.Use();
                         }
@@ -120,6 +132,19 @@ namespace TeckArtist.Tools
                     case EventType.MouseUp:
                         if (e.button == 0)
                         {
+                            if (currentLine)
+                            {
+                                var n0 = currentLine.positionCount;
+                                currentLine.Simplify(ssWidth * 0.02f);
+                                var n1 = currentLine.positionCount;
+                                var keys = new List<Keyframe>();
+                                for (int i = 0; i < currentLine.widthCurve.length; i += n0 / n1)
+                                {
+                                    keys.Add(currentLine.widthCurve[i]);
+                                }
+                                keys.Add(currentLine.widthCurve[currentLine.widthCurve.length - 1]);
+                                currentLine.widthCurve = new AnimationCurve(keys.ToArray());
+                            }
                             isDrawing = false;
                             currentLine = null;
                             if ((e.mousePosition - clickPos).sqrMagnitude < 4)
@@ -132,31 +157,59 @@ namespace TeckArtist.Tools
                     case EventType.MouseDrag:
                         if (isDrawing)
                         {
-                            ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
-                            plane.Raycast(ray, out d);
-                            var p = ray.GetPoint(d);
-                            var l = ssWidth / 2;
-                            // l *= smoothing;
-                            if ((p - lastPos).sqrMagnitude > l * l)
+                            var l = ssWidth;
+                            l *= Mathf.Lerp(0, 10, Smoothing);
+                            if ((p - lastPoint).sqrMagnitude > l * l)
                             {
                                 if (currentLine == null)
                                 {
-                                    AddLine();
+                                    AddLine(lastPoint, view.camera.transform.rotation);
                                     currentLine.positionCount = 1;
-                                    currentLine.SetPosition(0, lastPos);
+                                    currentLine.SetPosition(0, currentLine.transform.InverseTransformPoint(lastPoint));
                                 }
                                 ++currentLine.positionCount;
-                                lastPos = p;
+                                lastPoint += (p - lastPoint).normalized * (p - lastPos).magnitude;
+                                currentLine.SetPosition(currentLine.positionCount - 1, currentLine.transform.InverseTransformPoint(lastPoint));
+
+                                var keys = new Keyframe[currentLine.widthCurve.length + 1];
+                                for (int i = 0; i < currentLine.widthCurve.length; ++i)
+                                {
+                                    keys[i] = currentLine.widthCurve[i];
+                                    keys[i].time *= currentLine.widthCurve.length / (currentLine.widthCurve.length + 1f);
+                                }
+                                var val = Pen.current.pressure.ReadValue();
+                                keys[keys.Length - 1] = new Keyframe(1, val > 0 ? val : 1);
+                                currentLine.widthCurve = new AnimationCurve(keys);
+                                // TODO: Figure out why I need to create a new curve and assign it
+                                // Modifying the keys of the existing curve does nothing (AddKey, key.time, etc)
                             }
-                            if (currentLine != null)
-                            {
-                                currentLine.SetPosition(currentLine.positionCount - 1, p);
-                            }
+                            lastPos = p;
+                            // if (currentLine != null)
+                            // {
+                            //     currentLine.SetPosition(currentLine.positionCount - 1, p);
+                            // }
                             e.Use();
                         }
                         break;
                 }
             }
+        }
+
+        private void DrawString(Vector3 p0, Vector3 p1, Vector3 up)
+        {
+            var count = 10;
+            var points = new Vector3[count];
+            var l = 1 - (p1 - lastPoint).magnitude / (ssWidth * Mathf.Lerp(0, 10, Smoothing));
+            for (int i = 0; i < count; ++i)
+            {
+                float t = (float)i / (count - 1);
+                float tt = t * 2 - 1;
+                points[i] = Vector3.Lerp(p0, p1, t) - up * (1 - tt * tt) * l * ssWidth * Mathf.Lerp(0, 10, Smoothing) / 2;
+            }
+            var c = Handles.color;
+            Handles.color = Color.HSVToRGB(Mathf.Lerp(0, 120f / 360, 1 - l), 1, 1);
+            Handles.DrawAAPolyLine(5, points);
+            Handles.color = c;
         }
 
         public void ClearCursor()
@@ -173,11 +226,12 @@ namespace TeckArtist.Tools
             }
             foreach (var line in lines)
             {
+                if (line == null) continue;
                 line.widthMultiplier = HandleUtility.GetHandleSize(line.bounds.center) * Mathf.Lerp(0.01f, 0.1f, Width);
             }
         }
 
-        private void AddLine()
+        private void AddLine(Vector3 pos, Quaternion rot)
         {
             if (container == null)
             {
@@ -190,14 +244,18 @@ namespace TeckArtist.Tools
             {
                 hideFlags = HideFlags.HideAndDontSave
             };
+            go.transform.SetPositionAndRotation(pos, rot);
             currentLine = go.AddComponent<LineRenderer>();
-            currentLine.useWorldSpace = true;
+            // currentLine.useWorldSpace = true;
+            currentLine.useWorldSpace = false;
             currentLine.widthMultiplier = ssWidth;
             currentLine.sharedMaterial = Resources.Load<Material>("M_Annotate");
             currentLine.startColor = currentLine.endColor = StrokeColor;
             currentLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             currentLine.numCapVertices = 3;
             // currentLine.widthCurve = new AnimationCurve(new Keyframe(0, 0), new Keyframe(0.1f, 1), new Keyframe(0.9f, 1), new Keyframe(1, 0));
+            // currentLine.widthCurve = AnimationCurve.Constant(0, 1, 0);
+            currentLine.widthCurve = new AnimationCurve();
             go.transform.SetParent(container);
             Undo.RegisterCreatedObjectUndo(go, "Annotation");
             lines = container.GetComponentsInChildren<LineRenderer>();
