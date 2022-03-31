@@ -48,6 +48,10 @@ namespace TeckArtist.Tools
             UpdateLineWidth();
 
             var view = window as SceneView;
+            if (view == null)
+            {
+                return;
+            }
 
             if (useCursor)
             {
@@ -88,7 +92,8 @@ namespace TeckArtist.Tools
             Handles.color = color;
             Handles.zTest = zTest;
 
-            if (e.modifiers.HasFlag(EventModifiers.Alt)) return;
+            if (UnityEditor.Tools.viewToolActive && !e.shift) return;
+            // if (e.modifiers.HasFlag(EventModifiers.Alt)) return;
             // if (!e.shift || e.alt) return;
             HandleUtility.AddDefaultControl(-1);
 
